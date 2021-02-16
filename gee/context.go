@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+type H map[string]interface{}
+
 type Context struct {
 	//原始结构
 	Writer http.ResponseWriter
@@ -13,6 +15,8 @@ type Context struct {
 	//request信息
 	Path   string
 	Method string
+	//提供对路由参数的访问
+	Params map[string]string
 	//response信息
 	StatusCode int
 }
@@ -75,4 +79,9 @@ func (c *Context) HTML(code int, html string) {
 	c.setHeader("Content-Type", "application/json")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
+}
+
+func (c *Context) Param(key string) string {
+	value, _ := c.Params[key]
+	return value
 }
