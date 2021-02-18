@@ -30,7 +30,7 @@ func main() {
 	})
 
 	// add group 分组控制
-	v2 := r.Group("/v2")
+	v2 := r.Group("/v2") //r为engine，调用RouterGroup中的Group方法（engine继承了RouterGroup）
 	// 为v2分组添加中间件
 	v2.Use(onlyForV2()) // v2 group middleware
 	{

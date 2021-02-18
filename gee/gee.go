@@ -1,8 +1,10 @@
 package gee
 
 import (
+	"html/template"
 	"log"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -18,6 +20,11 @@ type Engine struct {
 	// Engine继承了RouterGroup的分组功能, 同时还有其他的Run, ServeHTTP等接口功能
 	*RouterGroup                // engine指向group
 	groups       []*RouterGroup // store all groups 存储所有groups
+
+	//将所有的模板加载进内存
+	htmlTemplates *template.Template
+	//所有的自定义模板渲染函数
+	funcMap template.FuncMap
 }
 
 type RouterGroup struct {
@@ -33,6 +40,7 @@ func New() *Engine {
 	engine := &Engine{router: newRouter()}
 
 	engine.RouterGroup = &RouterGroup{engine: engine}
+	//将RouterGroup添加进groups中，此Group为全局的Group
 	engine.groups = []*RouterGroup{engine.RouterGroup}
 
 	return engine
@@ -45,7 +53,7 @@ func (group *RouterGroup) Group(prefix string) *RouterGroup {
 		parent: group,
 		engine: engine,
 	}
-
+	//将新建的Group添加到全局请求处理器Engine的groups表中
 	engine.groups = append(engine.groups, newGroup)
 	return newGroup
 }
@@ -59,12 +67,12 @@ func (group *RouterGroup) addRoute(method string, comp string, handler HandlerFu
 
 // GET defines the method to add GET request
 func (group *RouterGroup) GET(pattern string, handler HandlerFunc) {
-	group.engine.addRoute("GET", pattern, handler)
+	group.addRoute("GET", pattern, handler)
 }
 
 // POST defines the method to add POST request
 func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
-	group.engine.addRoute("POST", pattern, handler)
+	group.addRoute("POST", pattern, handler)
 }
 
 // add middleware to the group
@@ -72,9 +80,29 @@ func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
 	group.middlewares = append(group.middlewares, middlewares...)
 }
 
+// create static handler
+func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileSystem) HandlerFunc {
+	//绝对路径
+	absolutePath := path.Join(group.prefix, relativePath)
+	fileServer := http.StripPrefix(absolutePath, http.FileServer(fs))
+	return func(context *Context) {
+		file := context.Param("filepath")
+		if _, err := fs.Open(file); err != nil {
+			context.Status(http.StatusNotFound)
+			return
+		}
+		fileServer.ServeHTTP(context.Writer, context.Req)
+	}
+}
+
+func (group *RouterGroup) Static(relativePath string, root string) {
+	handler := group.createStaticHandler(relativePath, http.Dir(root))
+	urlPattern := path.Join(relativePath, "/*filepath")
+	group.GET(urlPattern, handler)
+}
+
 func (engine *Engine) Run(addr string) (err error) {
 	return http.ListenAndServe(addr, engine)
-
 }
 
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -94,5 +122,15 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	c := newContext(w, req)
 	c.handlers = middlewares
+	c.engine = engine
 	engine.router.handle(c)
+}
+
+//设置自定义渲染函数funcMap和加载模板
+func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
+	engine.funcMap = funcMap
+}
+
+func (engine *Engine) LoadHTMLGlob(pattern string) {
+	engine.htmlTemplates = template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }
