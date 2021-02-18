@@ -21,8 +21,11 @@ type Context struct {
 	StatusCode int
 	//middlewares中间件
 	handlers []HandlerFunc
-	//记录当前执行到第几个中间件
+	//记录当前执行到第几个中间件，初始为-1
 	index int
+
+	//可以通过 Context 访问 Engine 中的 HTML 模板
+	engine *Engine
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
@@ -95,10 +98,12 @@ func (c *Context) Data(code int, data []byte) {
 }
 
 //html返回格式
-func (c *Context) HTML(code int, html string) {
+func (c *Context) HTML(code int, name string, data interface{}) {
 	c.setHeader("Content-Type", "application/json")
 	c.Status(code)
-	c.Writer.Write([]byte(html))
+	if err := c.engine.htmlTemplates.ExecuteTemplate(c.Writer, name, data); err != nil {
+		c.Fail(500, err.Error())
+	}
 }
 
 func (c *Context) Param(key string) string {

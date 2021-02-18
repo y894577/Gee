@@ -16,8 +16,11 @@ type node struct {
 
 //第一个匹配成功的节点，用于insert
 func (n *node) matchChild(part string) *node {
+	//遍历node节点的子节点
 	for _, child := range n.children {
+		//如果孩子节点的part == 搜索的part 或 该子节点是模糊匹配节点
 		if child.part == part || child.isWild {
+			//返回第一个查找到的子节点
 			return child
 		}
 	}
@@ -27,6 +30,7 @@ func (n *node) matchChild(part string) *node {
 //所有匹配成功的节点，用于search
 func (n *node) matchChildren(part string) []*node {
 	nodes := make([]*node, 0)
+	//遍历node节点的子节点
 	for _, child := range n.children {
 		if child.part == part || child.isWild {
 			nodes = append(nodes, child)
@@ -35,9 +39,12 @@ func (n *node) matchChildren(part string) []*node {
 	return nodes
 }
 
-//parts []string 匹配规则
+//pattern 插入的URL
+//parts []string 为pattern按照/进行分割得到的切片
+//height 当前插入高度
 func (n *node) insert(pattern string, parts []string, height int) {
 	//到达插入高度，为pattern赋值
+	//只有当前node的pattern不为空则匹配成功
 	if len(parts) == height {
 		n.pattern = pattern
 		return
@@ -46,9 +53,9 @@ func (n *node) insert(pattern string, parts []string, height int) {
 	part := parts[height]
 	//获取第一个匹配成功的节点
 	child := n.matchChild(part)
-	//该节点不匹配，没有匹配到当前part的节点
+	//该节点下没有匹配成功的子节点
 	if child == nil {
-		//插入新的节点，没有为pattern赋值
+		//插入新的节点，不为pattern赋值
 		child = &node{part: part, isWild: part[0] == ':' || part[0] == '*'}
 		n.children = append(n.children, child) //父节点的children插入新建的子节点
 	}
@@ -70,40 +77,13 @@ func (n *node) search(parts []string, height int) *node {
 	part := parts[height]
 	//获取匹配成功的节点列表
 	children := n.matchChildren(part)
-
+	//遍历匹配成功的节点列表
 	for _, child := range children {
+		//递归调用
 		result := child.search(parts, height+1)
 		if result != nil {
 			return result
 		}
 	}
 	return nil
-}
-
-func (r *router) getRoute(method string, path string) (*node, map[string]string) {
-	searchParts := parsePattern(path)
-	params := make(map[string]string)
-	root, ok := r.roots[method]
-
-	if !ok {
-		return nil, nil
-	}
-
-	n := root.search(searchParts, 0) //查找是否匹配成功
-
-	if n != nil { //n不为空，匹配成功
-		parts := parsePattern(n.pattern)
-		for index, part := range parts {
-			if part[0] == ':' {
-				params[part[1:]] = searchParts[index]
-			}
-			if part[0] == '*' && len(part) > 1 {
-				params[part[1:]] = strings.Join(searchParts[index:], "/")
-				break
-			}
-		}
-		return n, params
-	}
-
-	return nil, nil
 }
