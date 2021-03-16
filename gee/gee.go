@@ -87,6 +87,7 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
 	fileServer := http.StripPrefix(absolutePath, http.FileServer(fs))
 	return func(context *Context) {
 		file := context.Param("filepath")
+		// 检查路径是否存在
 		if _, err := fs.Open(file); err != nil {
 			context.Status(http.StatusNotFound)
 			return
@@ -95,6 +96,10 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
 	}
 }
 
+// 服务器静态资源
+// relativePath 相对路径 root 磁盘文件夹目录
+// r.Static("/assets", "/usr/web/blog/static")
+// 或相对路径 r.Static("/assets", "./static")
 func (group *RouterGroup) Static(relativePath string, root string) {
 	handler := group.createStaticHandler(relativePath, http.Dir(root))
 	urlPattern := path.Join(relativePath, "/*filepath")
@@ -131,6 +136,7 @@ func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 	engine.funcMap = funcMap
 }
 
+//加载html文件
 func (engine *Engine) LoadHTMLGlob(pattern string) {
 	engine.htmlTemplates = template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }
