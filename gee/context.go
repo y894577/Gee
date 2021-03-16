@@ -99,7 +99,7 @@ func (c *Context) Data(code int, data []byte) {
 
 //html返回格式
 func (c *Context) HTML(code int, name string, data interface{}) {
-	c.setHeader("Content-Type", "application/json")
+	c.setHeader("Content-Type", "text/html")
 	c.Status(code)
 	if err := c.engine.htmlTemplates.ExecuteTemplate(c.Writer, name, data); err != nil {
 		c.Fail(500, err.Error())
