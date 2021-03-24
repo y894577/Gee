@@ -106,6 +106,9 @@ func (g *Group) load(key string) (value ByteView, err error) {
 	})
 
 	if err == nil {
+		// 类型断言 i.(TypeName)
+		// 用于判断接口变量 i 绑定的实例类型是否实现了TypeName接口
+		// 如果满足接口类型则返回i绑定的实例的副本
 		return viewi.(ByteView), nil
 	}
 	return

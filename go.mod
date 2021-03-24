@@ -2,4 +2,4 @@ module Gee
 
 go 1.13
 
-require golang.org/x/tools v0.1.0 // indirect
+require github.com/mattn/go-sqlite3 v2.0.3+incompatible
