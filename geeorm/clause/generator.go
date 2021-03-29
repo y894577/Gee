@@ -13,6 +13,11 @@ var generators map[Type]generator
 func init() {
 	generators = make(map[Type]generator)
 	generators[INSERT] = _insert
+	generators[VALUES] = _values
+	generators[SELECT] = _select
+	generators[LIMIT] = _limit
+	generators[ORDERBY] = _orderBy
+	generators[WHERE] = _where
 }
 
 func genBindVars(num int) string {
@@ -24,10 +29,17 @@ func genBindVars(num int) string {
 }
 
 func _insert(values ...interface{}) (string, []interface{}) {
-	// SELECT $fields FROM $tableName
+	// INSERT INTO $tableName ($fields)
 	tableName := values[0]
 	fields := strings.Join(values[1].([]string), ", ")
 	return fmt.Sprintf("INSERT INTO %s (%v)", tableName, fields), []interface{}{}
+}
+
+func _select(values ...interface{}) (string, []interface{}) {
+	// SELECT $fields FROM $tableName
+	tableName := values[0]
+	fields := strings.Join(values[1].([]string), ",")
+	return fmt.Sprintf("SELECT %v FROM %s", fields, tableName), []interface{}{}
 }
 
 func _limit(values ...interface{}) (string, []interface{}) {
@@ -55,7 +67,8 @@ func _values(values ...interface{}) (string, []interface{}) {
 	return sql.String(), vars
 }
 
-func _where(values ...interface{}) (string, interface{}) {
+func _where(values ...interface{}) (string, []interface{}) {
+	// WHERE $desc
 	desc := values[0]
 	vars := values[1:]
 	return fmt.Sprintf("WHERE %s", desc), vars

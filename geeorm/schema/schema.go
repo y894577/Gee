@@ -53,3 +53,14 @@ func Parse(dest interface{}, d dialect.Dialect) *Schema {
 	}
 	return schema
 }
+
+// 根据数据库中列的顺序，从对象中找到对应的值，按顺序平铺
+// 即 u1 := &User{Name: "Tom", Age: 18} 转换为 ("Tom", 18) 这样的格式
+func (schema *Schema) RecordValues(dest interface{}) []interface{} {
+	destValue := reflect.Indirect(reflect.ValueOf(dest))
+	var fieldValues []interface{}
+	for _, field := range schema.Fields {
+		fieldValues = append(fieldValues, destValue.FieldByName(field.Name).Interface())
+	}
+	return fieldValues
+}
