@@ -19,6 +19,8 @@ type Session struct {
 	refTable *schema.Schema  // 数据库表
 
 	clause clause.Clause // 用于构造SQL语句
+
+	tx *sql.Tx // 数据库事务
 }
 
 func New(db *sql.DB, dialect dialect.Dialect) *Session {
@@ -28,13 +30,23 @@ func New(db *sql.DB, dialect dialect.Dialect) *Session {
 	}
 }
 
+type CommonDB interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
+
 func (s *Session) Clear() {
 	s.sql.Reset()
 	s.sqlVars = nil
 	s.clause = clause.Clause{}
 }
 
-func (s *Session) DB() *sql.DB {
+// 如果一个事务开始则返回事务，否则返回数据库
+func (s *Session) DB() CommonDB {
+	if s.tx != nil {
+		return s.tx
+	}
 	return s.db
 }
 

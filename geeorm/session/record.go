@@ -2,6 +2,7 @@ package session
 
 import (
 	"Gee/geeorm/clause"
+	"errors"
 	"reflect"
 )
 
@@ -25,6 +26,9 @@ func (s *Session) Insert(values ...interface{}) (int64, error) {
 
 // values 传入的对象，根据values对象查找是否存在
 func (s *Session) Find(values interface{}) error {
+	// 钩子，查询前
+	s.CallMethod(BeforeQuery, nil)
+
 	// 通过反射构造对象切片
 	destSlice := reflect.Indirect(reflect.ValueOf(values))
 	// 获取切片的单个元素的类型 destType
@@ -45,16 +49,22 @@ func (s *Session) Find(values interface{}) error {
 	for rows.Next() {
 		// 利用反射创建 destType 的实例 dest
 		dest := reflect.New(destType).Elem()
+
 		var values []interface{}
 		// 将 dest 的所有字段平铺开，构造切片 values
 		for _, name := range table.FieldNames {
 			values = append(values, dest.FieldByName(name).Addr().Interface())
 		}
+
 		// 调用 rows.Scan()
 		// 将该行记录每一列的值依次赋值给 values 中的每一个字段
 		if err := rows.Scan(values...); err != nil {
 			return err
 		}
+
+		// 钩子，查询后，操作每一行记录
+		s.CallMethod(AfterQuery, dest.Addr().Interface())
+
 		destSlice.Set(reflect.Append(destSlice, dest))
 	}
 	return rows.Close()
@@ -74,4 +84,16 @@ func (s *Session) Where(desc string, args ...interface{}) *Session {
 func (s *Session) OrderBy(desc string) *Session {
 	s.clause.Set(clause.ORDERBY, desc)
 	return s
+}
+func (s *Session) First(value interface{}) error {
+	dest := reflect.Indirect(reflect.ValueOf(value))
+	destSlice := reflect.New(reflect.SliceOf(dest.Type())).Elem()
+	if err := s.Limit(1).Find(destSlice.Addr().Interface()); err != nil {
+		return err
+	}
+	if destSlice.Len() == 0 {
+		return errors.New("NOT FOUND")
+	}
+	dest.Set(destSlice.Index(0))
+	return nil
 }
