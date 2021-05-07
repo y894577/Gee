@@ -4,12 +4,14 @@ import (
 	"Gee/geerpc/codec"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 //| Option{MagicNumber: xxx, CodecType: xxx} | Header{ServiceMethod ...} | Body interface{} |
@@ -19,14 +21,17 @@ const MagicNumber = 0x3bef5c
 
 // Option 消息的编解码方式
 type Option struct {
-	MagicNumber int        // 魔数 标记这是 rpc 请求
-	CodecType   codec.Type // 选择的编码方式
+	MagicNumber    int        // 魔数 标记这是 rpc 请求
+	CodecType      codec.Type // 选择的编码方式
+	ConnectTimeout time.Duration
+	HandleTimeout  time.Duration
 }
 
 // DefaultOption 默认配置
 var DefaultOption = &Option{
-	MagicNumber: MagicNumber,
-	CodecType:   codec.GobType,
+	MagicNumber:    MagicNumber,
+	CodecType:      codec.GobType,
+	ConnectTimeout: 10 * time.Second,
 }
 
 // Server represents an RPC Server.
@@ -103,7 +108,7 @@ func (server *Server) serveCodec(cc codec.Codec) {
 		}
 		wg.Add(1)
 		// 并发执行请求
-		go server.handleRequest(cc, req, sending, wg)
+		go server.handleRequest(cc, req, sending, wg, 1)
 	}
 }
 
@@ -168,15 +173,37 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 }
 
 // 处理请求
-func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
-	err := req.svc.call(req.mtype, req.argv, req.replyv)
-	if err != nil {
-		req.h.Error = err.Error()
-		server.sendResponse(cc, req.h, invalidRequest, sending)
+	called := make(chan struct{}) // called 信道接收到消息
+	sent := make(chan struct{})
+	go func() {
+		err := req.svc.call(req.mtype, req.argv, req.replyv)
+		called <- struct{}{}
+		if err != nil {
+			req.h.Error = err.Error()
+			server.sendResponse(cc, req.h, invalidRequest, sending)
+			sent <- struct{}{}
+			return
+		}
+		server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+		sent <- struct{}{}
+	}()
+
+	if timeout == 0 {
+		<-called
+		<-sent
 		return
 	}
-	server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+	select {
+	// 成功执行
+	case <-called:
+		<-sent
+	// 处理超时，called被阻塞
+	case <-time.After(timeout):
+		req.h.Error = fmt.Sprintf("rpc server: request handle timeout: expect within %s", timeout)
+		server.sendResponse(cc, req.h, invalidRequest, sending)
+	}
 }
 
 // Register 通过自定义 Server 注册

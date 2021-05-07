@@ -2,6 +2,7 @@ package main
 
 import (
 	"Gee/geerpc"
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -25,6 +26,7 @@ func main() {
 	go startServer(addr)
 
 	client, _ := geerpc.Dial("tcp", <-addr)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
 	defer func() { _ = client.Close() }()
 
 	time.Sleep(time.Second)
@@ -36,7 +38,7 @@ func main() {
 			defer func() { wg.Done() }()
 			args := fmt.Sprintf("geerpc req %d", i)
 			var reply string
-			err := client.Call("Foo.Sum", args, &reply)
+			err := client.Call(ctx, "Foo.Sum", args, &reply)
 			if err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
