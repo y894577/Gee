@@ -39,7 +39,7 @@ func newContext(w http.ResponseWriter, req *http.Request) *Context {
 	}
 }
 
-//调用context的中间件
+// Next 调用context的中间件
 func (c *Context) Next() {
 	c.index++
 	s := len(c.handlers)
@@ -53,7 +53,7 @@ func (c *Context) Fail(code int, err string) {
 	c.JSON(code, H{"message": err})
 }
 
-//获取URL中?后面的请求参数
+// PostForm 获取URL中?后面的请求参数
 func (c *Context) PostForm(key string) string {
 	return c.Req.FormValue(key)
 }

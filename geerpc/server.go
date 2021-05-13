@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -18,6 +19,11 @@ import (
 //| <------      固定 JSON 编码      ------>  | <-------   编码方式由 CodeType 决定   ------->|
 
 const MagicNumber = 0x3bef5c
+const (
+	connected        = "200 Connected to Gee RPC"
+	defaultRPCPath   = "/_geeprc_"
+	defaultDebugPath = "/debug/geerpc"
+)
 
 // Option 消息的编解码方式
 type Option struct {
@@ -35,6 +41,7 @@ var DefaultOption = &Option{
 }
 
 // Server represents an RPC Server.
+// 实现handler接口
 type Server struct {
 	serviceMap sync.Map
 }
@@ -239,4 +246,41 @@ func (server *Server) findService(serviceMethod string) (svc *service, mType *me
 		err = errors.New("rpc server: can't find method " + serviceMethod)
 	}
 	return
+}
+
+// 客户端向 RPC 服务器发送 CONNECT 请求
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	//不是connect方法，返回405
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	// Use Hijack when you don't want to use the built-in server's implementation of the HTTP protocol.
+	// This might be because you want to switch protocols (to WebSocket for example)
+	// or the built-in server is getting in your way.
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking", req.RemoteAddr, ": ", err.Error())
+		return
+	}
+
+	_, _ = io.WriteString(conn, "HTTP/1.0"+connected+"\n\n")
+	server.ServeConn(conn)
+}
+
+// HandleHTTP registers an HTTP handler for RPC messages on rpcPath.
+// It is still necessary to invoke http.Serve(), typically in a go statement.
+func (server *Server) HandleHTTP() {
+	// 注册http句柄 处理http请求
+	http.Handle(defaultRPCPath, server)
+	http.Handle(defaultDebugPath, debugHTTP{server})
+	log.Println("rpc server debug path:", defaultDebugPath)
+}
+
+// HandleHTTP is a convenient approach for default server to register HTTP handlers
+func HandleHTTP() {
+	// default服务器注册http句柄
+	DefaultServer.HandleHTTP()
 }

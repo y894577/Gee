@@ -18,7 +18,7 @@ type Clause struct {
 	sqlVars map[Type][]interface{}
 }
 
-// 根据 Type 调用对应的 generator，生成该子句对应的SQL语句
+// Set 根据 Type 调用对应的 generator，生成该子句对应的SQL语句
 func (c *Clause) Set(name Type, vars ...interface{}) {
 	if c.sql == nil {
 		c.sql = make(map[Type]string)
@@ -29,7 +29,7 @@ func (c *Clause) Set(name Type, vars ...interface{}) {
 	c.sqlVars[name] = vars
 }
 
-// 根据传入的 Type 顺序，构造最终的SQL语句
+// Build 根据传入的 Type 顺序，构造最终的SQL语句
 func (c *Clause) Build(orders ...Type) (string, []interface{}) {
 	var sqls []string
 	var vars []interface{}

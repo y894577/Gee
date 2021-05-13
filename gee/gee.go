@@ -75,7 +75,7 @@ func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
 	group.addRoute("POST", pattern, handler)
 }
 
-// add middleware to the group
+// Use add middleware to the group
 func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
 	group.middlewares = append(group.middlewares, middlewares...)
 }
@@ -96,7 +96,7 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
 	}
 }
 
-// 服务器静态资源
+// Static 服务器静态资源
 // relativePath 相对路径 root 磁盘文件夹目录
 // r.Static("/assets", "/usr/web/blog/static")
 // 或相对路径 r.Static("/assets", "./static")
@@ -131,12 +131,12 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	engine.router.handle(c)
 }
 
-//设置自定义渲染函数funcMap和加载模板
+// SetFuncMap 设置自定义渲染函数funcMap和加载模板
 func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 	engine.funcMap = funcMap
 }
 
-//加载html文件
+// LoadHTMLGlob 加载html文件
 func (engine *Engine) LoadHTMLGlob(pattern string) {
 	engine.htmlTemplates = template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }

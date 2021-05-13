@@ -2,6 +2,7 @@ package geerpc
 
 import (
 	"Gee/geerpc/codec"
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,9 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,6 +46,32 @@ type Client struct {
 	pending  map[uint64]*Call //存储未完成的请求，key-编号，value-Call实例
 	closing  bool             // 用户主动关闭 Client
 	shutdown bool             // Client 发生错误
+}
+
+// NewHTTPClient new a Client instance via HTTP as transport protocol
+// 发起connect请求，并返回建立了连接的客户端
+func NewHTTPClient(conn net.Conn, option *Option) (*Client, error) {
+	_, _ = io.WriteString(conn, fmt.Sprintf("CONNECT %s HTTP/1.0\n\n", defaultRPCPath))
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{
+		Method: "CONNECT",
+	})
+	fmt.Println(err)
+	if err == nil && resp.Status == connected {
+
+		return NewClient(conn, option)
+	}
+	if err == nil {
+		err = errors.New("unexpected HTTP response: " + resp.Status)
+	}
+	return nil, err
+}
+
+// DialHTTP connects to an HTTP RPC server at the specified network address
+// listening on the default HTTP RPC path.
+// 建立 HTTP 连接
+func DialHTTP(network, address string, opts ...*Option) (*Client, error) {
+	return dialTimeout(NewHTTPClient, network, address, opts...)
 }
 
 // NewClient 新建客户端
@@ -80,7 +109,7 @@ func parseOptions(opts ...*Option) (*Option, error) {
 	if len(opts) == 0 || opts[0] == nil {
 		return DefaultOption, nil
 	}
-	if len(opts) == 1 {
+	if len(opts) != 1 {
 		return nil, errors.New("number of options is more than 1")
 	}
 	opt := opts[0]
@@ -158,7 +187,7 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 
 // Call 异步接口 Go 的封装
 func (client *Client) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
-	call := client.Go(serviceMethod, args, reply, make(chan *Call))
+	call := client.Go(serviceMethod, args, reply, make(chan *Call, 1))
 	select {
 	// context 当前程序单元（goroutine）的执行状态
 	// 协程结束
@@ -267,11 +296,11 @@ type clientResult struct {
 type newClientFunc func(conn net.Conn, opt *Option) (client *Client, err error)
 
 func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (client *Client, err error) {
-	options, err := parseOptions()
+	options, err := parseOptions(opts...)
 	if err != nil {
 		return
 	}
-	// 建立网络连接
+	// 建立网络连接 but takes timeout
 	conn, err := net.DialTimeout(network, address, options.ConnectTimeout)
 	if err != nil {
 		return
@@ -285,14 +314,15 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 	ch := make(chan clientResult)
 	// 子协程执行 NewClient
 	go func() {
-		client, err := f(conn, options)
+		//client, err := f(conn, options)
+		client, err := NewHTTPClient(conn, options)
 		// 执行完成后则通过信道 ch 发送结果
 		ch <- clientResult{
 			client: client,
 			err:    err,
 		}
 	}()
-	if options.HandleTimeout == 0 {
+	if options.ConnectTimeout == 0 {
 		result := <-ch
 		return result.client, result.err
 	}
@@ -302,5 +332,19 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 		return nil, fmt.Errorf("rpc client: connect timeout: expect within %s", options.ConnectTimeout)
 	case result := <-ch:
 		return result.client, result.err
+	}
+}
+
+func XDial(rpcAddr string, opts ...*Option) (*Client, error) {
+	parts := strings.Split(rpcAddr, "@")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("rpc client err: wrong format '%s', expect protocol@addr", rpcAddr)
+	}
+	protocol, addr := parts[0], parts[1]
+	switch protocol {
+	case "http":
+		return DialHTTP("tcp", addr, opts...) // http协议
+	default:
+		return Dial(protocol, addr, opts...) // 其他协议
 	}
 }

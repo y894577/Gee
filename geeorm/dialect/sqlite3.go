@@ -14,7 +14,7 @@ func init() {
 	RegisterDialect("sqlite3", &sqlite3{})
 }
 
-// 将 Go 语言的类型映射为 SQLite 的数据类型
+// DataTypeOf 将 Go 语言的类型映射为 SQLite 的数据类型
 func (s *sqlite3) DataTypeOf(typ reflect.Value) string {
 	// 利用反射获取变量类型
 	switch typ.Kind() {

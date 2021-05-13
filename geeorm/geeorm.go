@@ -46,15 +46,15 @@ func (engine *Engine) Close() {
 	log.Info("Close database success")
 }
 
-// 创建会话
+// NewSession 创建会话
 func (engine *Engine) NewSession() *session.Session {
 	return session.New(engine.db, engine.dialect)
 }
 
-// 自定义一个函数类型
+// TxFunc 自定义一个函数类型
 type TxFunc func(*session.Session) (interface{}, error)
 
-// 传入上面的函数类型
+// Transaction 传入上面的函数类型
 func (engine *Engine) Transaction(f TxFunc) (result interface{}, err error) {
 	s := engine.NewSession()
 	if err := s.Begin(); err != nil {

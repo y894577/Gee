@@ -6,14 +6,14 @@ import (
 	"reflect"
 )
 
-// 字段
+// Field 字段
 type Field struct {
 	Name string // 字段名
 	Type string // 类型
 	Tag  string // 约束条件
 }
 
-// 数据库表
+// Schema 数据库表
 type Schema struct {
 	Model      interface{}       // 被映射的对象
 	Name       string            // 表名
@@ -22,7 +22,7 @@ type Schema struct {
 	fieldMap   map[string]*Field // 记录字段名和 Field 的映射关系
 }
 
-// 将任意的对象解析为 Schema 实例
+// Parse 将任意的对象解析为 Schema 实例
 func Parse(dest interface{}, d dialect.Dialect) *Schema {
 	// reflect.Indirect() 获取指针指向的实例
 	modelType := reflect.Indirect(reflect.ValueOf(dest)).Type()
@@ -54,7 +54,7 @@ func Parse(dest interface{}, d dialect.Dialect) *Schema {
 	return schema
 }
 
-// 根据数据库中列的顺序，从对象中找到对应的值，按顺序平铺
+// RecordValues 根据数据库中列的顺序，从对象中找到对应的值，按顺序平铺
 // 即 u1 := &User{Name: "Tom", Age: 18} 转换为 ("Tom", 18) 这样的格式
 func (schema *Schema) RecordValues(dest interface{}) []interface{} {
 	destValue := reflect.Indirect(reflect.ValueOf(dest))
